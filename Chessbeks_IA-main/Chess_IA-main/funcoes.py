@@ -1,6 +1,10 @@
+from main import get_stockfish_move
 import chess
-import os
 import chess.engine
+import os
+from main import verifyPlayerMove
+from main import sicilianaGame
+from main import gameOver
 
 pawnTablew = [
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -78,22 +82,32 @@ sicilianaGamew = ("e4","c5","nf3")
 sicilianaGameb = ("e5", "Nc6", "Nf6")
 
 
-def sicilianaGame(board,count):
-    if board.turn == True:
-        board.push_san(sicilianaGamew[count])
+def sicilianaGame(board, count):
+    if count == 0:
+        move = chess.Move("e2", "e4")
     else:
-        board.push_san(sicilianaGameb[count])
+        move = get_stockfish_move(board)
 
-def clearConsole():
-    command = 'clear'
-    if os.name in ('nt', 'dos'):
-        command = 'cls'
-    os.system(command)
+    return move
+
+def evaluateBoard(board):
+    try:
+        engine = chess.engine.SimpleEngine.popen_uci(
+            r"D:\Dowloads\stockfish-windows-x86-64-modern\stockfish\stockfish-windows-x86-64-modern.exe"
+        )
+        evaluation = engine.evaluate(board)
+        engine.close()
+
+        return evaluation
+    except Exception as e:
+        # Analisar  possíveis erros
+        print("Error evaluating board:", e)
+        return 0
 
 
 def minimaxRoot(depth, board, isMaximizing):
     # Chama o Stockfish para obter a avaliação da posição atual
-    engine = chess.engine.SimpleEngine.popen_uci(r"D:\Dowloads\stockfish-windows-x86-64\stockfish")
+    engine = chess.engine.SimpleEngine.popen_uci(r"D:\Dowloads\stockfish-windows-x86-64-modern\stockfish\stockfish-windows-x86-64-modern.exe")
     evaluation = engine.evaluate(board)
     engine.close()
 
@@ -111,70 +125,75 @@ def minimaxRoot(depth, board, isMaximizing):
             finalMove = move
         return finalMove
 
-def minimax(depth, board, alpha, beta, maximizing):
-    if depth == 0:
+def minimax(depth, board, maximizing, alpha, beta):
+    if depth == 0 or board.is_checkmate() or board.is_stalemate() or board.is_insufficient_material():
         return -evaluateBoard(board)
-    
+
     legalMoves = list(board.legal_moves)
 
     if maximizing:
         bestMove = -9999
-        for x in legalMoves:
-            move = chess.Move.from_uci(str(x))
-            board.push(move)
-            bestMove = max(bestMove, minimax(depth - 1, board, alpha, beta, not maximizing))
-            board.pop()
+        for move in legalMoves:
+            newBoard = board.copy()
+            newBoard.push(move)
+            bestMove = max(bestMove, minimax(depth - 1, newBoard, False, alpha, beta))
             alpha = max(alpha, bestMove)
             if beta <= alpha:
                 return bestMove
         return bestMove
     else:
         bestMove = 9999
-        for x in legalMoves:
-            move = chess.Move.from_uci(str(x))
-            board.push(move)
-            bestMove = min(bestMove, minimax(depth - 1, board, alpha, beta, not maximizing))
-            board.pop()
+        for move in legalMoves:
+            newBoard = board.copy()
+            newBoard.push(move)
+            bestMove = min(bestMove, minimax(depth - 1, newBoard, True, alpha, beta))
             beta = min(beta, bestMove)
             if beta <= alpha:
                 return bestMove
         return bestMove
+
     
-def evaluateBoard(board):
-    # Chama o Stockfish para obter a avaliação da posição atual
-    engine = chess.engine.SimpleEngine.popen_uci(r"D:\Dowloads\stockfish-windows-x86-64\stockfish")
-    evaluation = engine.evaluate(board)
-    engine.close()
+def verifyPlayerMove(move, board):
+    try:
+        board.push_san(move)
+    except chess.MoveError:
+        print("Jogada inválida, faça outra jogada")
 
-    return evaluation
+def gameOver(board):
+    return board.is_checkmate() or board.is_stalemate() or board.is_insufficient_material()
 
+
+pawnTable = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
+knightsTable = [-10, 5, 15, 30, 30, 30, 30, 30, 5, -10]
+bishopsTable = [-20, 10, 25, 40, 40, 40, 40, 40, 10, -20]
+rooksTable = [-40, 30, 50, 60, 60, 60, 60, 60, 30, -40]
+queensTable = [-60, 40, 60, 80, 80, 80, 80, 80, 40, -60]
+kingsTable = [-100, -50, -25, 0, 0, 0, 0, -25, -50, -100]
 
 def getPieceValue(piece, i):
     if piece is None:
         return 0
     value = 0
     if piece == "P" or piece == "p":
-        value = 10 + ((pawnTablew[i]) if piece == "P" else (pawnTableb[i]))
+        value = 10 + pawnTable[i+1]
     if piece == "N" or piece == "n":
-        value = 30 + ((knightsTablew[i]) if piece == "N" else (knightsTableb[i]))
+        value = 30 + knightsTable[i+1]
     if piece == "B" or piece == "b":
-        value = 30 + ((bishopsTablew[i]) if piece == "B" else (bishopsTableb[i]))
+        value = 30 + bishopsTable[i+1]
     if piece == "R" or piece == "r":
-        value = 50 + ((rooksTablew[i]) if piece == "R" else (rooksTableb[i]))
+        value = 50 + rooksTable[i+1]
     if piece == "Q" or piece == "q":
-        value = 90 + ((queensTablew[i]) if piece == "Q" else (queensTableb[i]))
+        value = 90 + queensTable[i+1]
     if piece == 'K' or piece == 'k':
-        value = 900 + ((kingsTablew[i]) if piece == "K" else (kingsTableb[i]))
+        value = 900 + kingsTable[i+1]
     return value
-
 def verifyPlayerMove(move, board):
     try:
         board.push_san(move)
-    except:
+    except chess.MoveError:
         print("Jogada inválida, faça outra jogada")
 
 def gameOver(board):
-    if board.is_checkmate() or board.is_stalemate() or board.is_insufficient_material():
-        if len(list(board.legal_moves)) == 0:
-            return True
+    return board.is_checkmate() or board.is_stalemate() or board.is_insufficient_material()
+
     return False
